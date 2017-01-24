@@ -29,81 +29,80 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 package com.jcraft.jsch;
 
-import java.io.*;
+import java.io.InputStream;
+import java.io.OutputStream;
 
-public class ChannelDirectTCPIP extends Channel{
+public class ChannelDirectTCPIP extends Channel {
 
-  static private final int LOCAL_WINDOW_SIZE_MAX=0x20000;
-  static private final int LOCAL_MAXIMUM_PACKET_SIZE=0x4000;
+    static private final int LOCAL_WINDOW_SIZE_MAX = 0x20000;
+    static private final int LOCAL_MAXIMUM_PACKET_SIZE = 0x4000;
 
-  String host;
-  int port;
+    String host;
+    int port;
 
-  String originator_IP_address="127.0.0.1";
-  int originator_port=0;
+    String originator_IP_address = "127.0.0.1";
+    int originator_port = 0;
 
-  ChannelDirectTCPIP(){
-    super();
-    setLocalWindowSizeMax(LOCAL_WINDOW_SIZE_MAX);
-    setLocalWindowSize(LOCAL_WINDOW_SIZE_MAX);
-    setLocalPacketSize(LOCAL_MAXIMUM_PACKET_SIZE);
-  }
-
-  void init (){
-    try{ 
-      io=new IO();
+    ChannelDirectTCPIP() {
+        super();
+        setLocalWindowSizeMax(LOCAL_WINDOW_SIZE_MAX);
+        setLocalWindowSize(LOCAL_WINDOW_SIZE_MAX);
+        setLocalPacketSize(LOCAL_MAXIMUM_PACKET_SIZE);
     }
-    catch(Exception e){
-      System.err.println(e);
-    }
-  }
 
-  public void connect() throws JSchException{
-    try{
-      Session _session=getSession();
-      if(!_session.isConnected()){
-        throw new JSchException("session is down");
-      }
-      Buffer buf=new Buffer(150);
-      Packet packet=new Packet(buf);
-      // send
-      // byte   SSH_MSG_CHANNEL_OPEN(90)
-      // string channel type         //
-      // uint32 sender channel       // 0
-      // uint32 initial window size  // 0x100000(65536)
-      // uint32 maxmum packet size   // 0x4000(16384)
-
-      packet.reset();
-      buf.putByte((byte)90);
-      buf.putString(Util.str2byte("direct-tcpip"));
-      buf.putInt(id);
-      buf.putInt(lwsize);
-      buf.putInt(lmpsize);
-      buf.putString(Util.str2byte(host));
-      buf.putInt(port);
-      buf.putString(Util.str2byte(originator_IP_address));
-      buf.putInt(originator_port);
-      _session.write(packet);
-
-      int retry=1000;
-      try{
-        while(this.getRecipient()==-1 && 
-              _session.isConnected() &&
-              retry>0 &&
-              !eof_remote){
-          //Thread.sleep(500);
-          Thread.sleep(50);
-          retry--;
+    void init() {
+        try {
+            io = new IO();
+        } catch (Exception e) {
+            System.err.println(e);
         }
-      }
-      catch(Exception ee){
-      }
-      if(!_session.isConnected()){
-	throw new JSchException("session is down");
-      }
-      if(retry==0 || this.eof_remote){
-        throw new JSchException("channel is not opened.");
-      }
+    }
+
+    public void connect() throws JSchException {
+        try {
+            Session _session = getSession();
+            if (!_session.isConnected()) {
+                throw new JSchException("session is down");
+            }
+            Buffer buf = new Buffer(150);
+            Packet packet = new Packet(buf);
+            // send
+            // byte   SSH_MSG_CHANNEL_OPEN(90)
+            // string channel type         //
+            // uint32 sender channel       // 0
+            // uint32 initial window size  // 0x100000(65536)
+            // uint32 maxmum packet size   // 0x4000(16384)
+
+            packet.reset();
+            buf.putByte((byte) 90);
+            buf.putString(Util.str2byte("direct-tcpip"));
+            buf.putInt(id);
+            buf.putInt(lwsize);
+            buf.putInt(lmpsize);
+            buf.putString(Util.str2byte(host));
+            buf.putInt(port);
+            buf.putString(Util.str2byte(originator_IP_address));
+            buf.putInt(originator_port);
+            _session.write(packet);
+
+            int retry = 1000;
+            try {
+                while (this.getRecipient() == -1 &&
+                        _session.isConnected() &&
+                        retry > 0 &&
+                        !eof_remote) {
+                    //Thread.sleep(500);
+                    Thread.sleep(50);
+                    retry--;
+                }
+            } catch (Exception ee) {
+            }
+            if (!_session.isConnected()) {
+                throw new JSchException("session is down");
+            }
+            if (retry == 0 || this.eof_remote) {
+                throw new JSchException("channel is not opened.");
+            }
       /*
       if(this.eof_remote){      // failed to open
         disconnect();
@@ -111,73 +110,83 @@ public class ChannelDirectTCPIP extends Channel{
       }
       */
 
-      connected=true;
+            connected = true;
 
-      if(io.in!=null){
-        thread=new Thread(this);
-        thread.setName("DirectTCPIP thread "+_session.getHost());
-        if(_session.daemon_thread){
-          thread.setDaemon(_session.daemon_thread);
+            if (io.in != null) {
+                thread = new Thread(this);
+                thread.setName("DirectTCPIP thread " + _session.getHost());
+                if (_session.daemon_thread) {
+                    thread.setDaemon(_session.daemon_thread);
+                }
+                thread.start();
+            }
+        } catch (Exception e) {
+            io.close();
+            io = null;
+            Channel.del(this);
+            if (e instanceof JSchException) {
+                throw (JSchException) e;
+            }
         }
-        thread.start();
-      }
     }
-    catch(Exception e){
-      io.close();
-      io=null;
-      Channel.del(this);
-      if (e instanceof JSchException) {
-        throw (JSchException) e;
-      }
-    }
-  }
 
-  public void run(){
+    public void run() {
 
-    Buffer buf=new Buffer(rmpsize);
-    Packet packet=new Packet(buf);
-    int i=0;
+        Buffer buf = new Buffer(rmpsize);
+        Packet packet = new Packet(buf);
+        int i = 0;
 
-    try{
-      Session _session=getSession();
-      while(isConnected() &&
-            thread!=null && 
-            io!=null && 
-            io.in!=null){
-        i=io.in.read(buf.buffer, 
-                     14, 
-                     buf.buffer.length-14
-                     -32 -20 // padding and mac
-                     );
+        try {
+            Session _session = getSession();
+            while (isConnected() &&
+                    thread != null &&
+                    io != null &&
+                    io.in != null) {
+                i = io.in.read(buf.buffer,
+                        14,
+                        buf.buffer.length - 14
+                                - 32 - 20 // padding and mac
+                );
 
-        if(i<=0){
-          eof();
-          break;
+                if (i <= 0) {
+                    eof();
+                    break;
+                }
+                if (close) break;
+                packet.reset();
+                buf.putByte((byte) Session.SSH_MSG_CHANNEL_DATA);
+                buf.putInt(recipient);
+                buf.putInt(i);
+                buf.skip(i);
+                _session.write(packet, this, i);
+            }
+        } catch (Exception e) {
         }
-        if(close)break;
-        packet.reset();
-        buf.putByte((byte)Session.SSH_MSG_CHANNEL_DATA);
-        buf.putInt(recipient);
-        buf.putInt(i);
-        buf.skip(i);
-        _session.write(packet, this, i);
-      }
+        disconnect();
+        //System.err.println("connect end");
     }
-    catch(Exception e){
+
+    public void setInputStream(InputStream in) {
+        io.setInputStream(in);
     }
-    disconnect();
-    //System.err.println("connect end");
-  }
 
-  public void setInputStream(InputStream in){
-    io.setInputStream(in);
-  }
-  public void setOutputStream(OutputStream out){
-    io.setOutputStream(out);
-  }
+    public void setOutputStream(OutputStream out) {
+        io.setOutputStream(out);
+    }
 
-  public void setHost(String host){this.host=host;}
-  public void setPort(int port){this.port=port;}
-  public void setOrgIPAddress(String foo){this.originator_IP_address=foo;}
-  public void setOrgPort(int foo){this.originator_port=foo;}
+    public void setHost(String host) {
+        this.host = host;
+    }
+
+    public void setPort(int port) {
+        this.port = port;
+    }
+
+    public void setOrgIPAddress(String foo) {
+        this.originator_IP_address = foo;
+    }
+
+    public void setOrgPort(int foo) {
+        this.originator_port = foo;
+    }
 }

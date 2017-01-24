@@ -30,46 +30,55 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 package com.jcraft.jsch.jce;
 
 import com.jcraft.jsch.MAC;
-import javax.crypto.*;
-import javax.crypto.spec.*;
 
-public class HMACMD5 implements MAC{
-  private static final String name="hmac-md5";
-  private static final int BSIZE=16;
-  private Mac mac;
-  public int getBlockSize(){return BSIZE;};
-  public void init(byte[] key) throws Exception{
-    if(key.length>BSIZE){
-      byte[] tmp=new byte[BSIZE];
-      System.arraycopy(key, 0, tmp, 0, BSIZE);	  
-      key=tmp;
+import javax.crypto.Mac;
+import javax.crypto.ShortBufferException;
+import javax.crypto.spec.SecretKeySpec;
+
+public class HMACMD5 implements MAC {
+    private static final String name = "hmac-md5";
+    private static final int BSIZE = 16;
+    private final byte[] tmp = new byte[4];
+    private Mac mac;
+
+    ;
+
+    public int getBlockSize() {
+        return BSIZE;
     }
 
-    SecretKeySpec skey=new SecretKeySpec(key, "HmacMD5");
-    mac=Mac.getInstance("HmacMD5");
-    mac.init(skey);
-  } 
+    public void init(byte[] key) throws Exception {
+        if (key.length > BSIZE) {
+            byte[] tmp = new byte[BSIZE];
+            System.arraycopy(key, 0, tmp, 0, BSIZE);
+            key = tmp;
+        }
 
-  private final byte[] tmp=new byte[4];
-  public void update(int i){
-    tmp[0]=(byte)(i>>>24);
-    tmp[1]=(byte)(i>>>16);
-    tmp[2]=(byte)(i>>>8);
-    tmp[3]=(byte)i;
-    update(tmp, 0, 4);
-  }
-  public void update(byte foo[], int s, int l){
-    mac.update(foo, s, l);      
-  }
-  public void doFinal(byte[] buf, int offset){
-    try{
-      mac.doFinal(buf, offset);
+        SecretKeySpec skey = new SecretKeySpec(key, "HmacMD5");
+        mac = Mac.getInstance("HmacMD5");
+        mac.init(skey);
     }
-    catch(ShortBufferException e){
-    }
-  }
 
-  public String getName(){
-    return name;
-  }
+    public void update(int i) {
+        tmp[0] = (byte) (i >>> 24);
+        tmp[1] = (byte) (i >>> 16);
+        tmp[2] = (byte) (i >>> 8);
+        tmp[3] = (byte) i;
+        update(tmp, 0, 4);
+    }
+
+    public void update(byte foo[], int s, int l) {
+        mac.update(foo, s, l);
+    }
+
+    public void doFinal(byte[] buf, int offset) {
+        try {
+            mac.doFinal(buf, offset);
+        } catch (ShortBufferException e) {
+        }
+    }
+
+    public String getName() {
+        return name;
+    }
 }
